@@ -1,13 +1,149 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ALMA Exchange</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+import React, { useEffect, useMemo, useRef, useState } from "react"; import { motion, AnimatePresence } from "framer-motion"; import { Wallet, ArrowDownToLine, ArrowUpFromLine, Send, HelpCircle, Crown, Headset, LineChart, LogIn, UserPlus, ShieldCheck, ChevronRight, Menu, X, LogOut } from "lucide-react";
+
+// shadcn/ui components (or replace with your own) import { Button } from "@/components/ui/button"; import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; import { Input } from "@/components/ui/input"; import { Label } from "@/components/ui/label"; import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"; import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// --- Supabase setup --- import { createClient } from "@supabase/supabase-js"; const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://YOUR_PROJECT_URL.supabase.co"; const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "YOUR_ANON_KEY"; export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// DB table names const TBL_WALLETS = "wallets"; const TBL_TX = "transactions";
+
+const brand = { bg: "bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950", card: "bg-slate-900/70 backdrop-blur border-slate-800", accent: "text-teal-400", accentBg: "bg-teal-500", ring: "focus-visible:ring-teal-500", };
+
+// Demo ticker price feed (client-side) const usePriceFeed = () => { const [rows, setRows] = useState([ { symbol: "BTC/USDT", price: 64321.15, change: 0.8 }, { symbol: "ETH/USDT", price: 3289.02, change: -0.6 }, { symbol: "SOL/USDT", price: 171.33, change: 1.2 }, { symbol: "BNB/USDT", price: 604.88, change: -0.2 }, { symbol: "XRP/USDT", price: 0.92, change: 0.1 }, ]);
+
+useEffect(() => { const id = setInterval(() => { setRows(prev => prev.map(r => { const jitter = (Math.random() - 0.5) * (r.price * 0.001); const next = +(r.price + jitter).toFixed(r.price > 1 ? 2 : 4); const chg = +(((next - r.price) / r.price) * 100).toFixed(2); return { ...r, price: next, change: Math.max(-5, Math.min(5, r.change + chg)) }; })); }, 2000); return () => clearInterval(id); }, []);
+
+return rows; };
+
+const Ticker = () => { const data = usePriceFeed(); return ( <div className="w-full overflow-hidden border-y border-slate-800"> <div className="flex gap-8 whitespace-nowrap animate-[ticker_30s_linear_infinite] px-4 py-2 text-sm"> {data.concat(data).map((r, i) => ( <div key={i} className="flex items-center gap-2 text-slate-300"> <span className="font-medium">{r.symbol}</span> <span className="tabular-nums">{r.price}</span> <span className={${r.change >= 0 ? "text-emerald-400" : "text-rose-400"}}> {r.change >= 0 ? "+" : ""}{r.change.toFixed(2)}% </span> </div> ))} </div> <style>{@keyframes ticker {0%{transform:translateX(0)}100%{transform:translateX(-50%)}}}</style> </div> ); };
+
+const HeroCarousel = ({ user }: { user: any }) => { const slides = [ { title: user ? "Welcome back to ALMA" : "Trade Smarter with ALMA", subtitle: user ? "Your balances sync in real-time via Supabase." : "Spot, Futures & Copy Trading — sleek dashboard.", }, { title: "Secure Wallet & Fast Transfers", subtitle: "Postgres-backed balances and transaction logs.", }, { title: "Invest & Earn", subtitle: "Stake popular assets or join curated strategies.", }, { title: "24/7 Support", subtitle: "Real humans. Real help. Any time.", }, ]; const [idx, setIdx] = useState(0); useEffect(() => { const id = setInterval(() => setIdx(i => (i + 1) % slides.length), 5000); return () => clearInterval(id); }, []);
+
+return ( <div className="relative w-full rounded-2xl md:rounded-3xl p-10 md:p-16 border border-slate-800 bg-[radial-gradient(1200px_600px_at_50%_-20%,rgba(45,212,191,0.12),transparent)]"> <AnimatePresence mode="wait"> <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.4 }} className="text-center" > <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white"> {slides[idx].title} </h1> <p className="mt-4 text-slate-300 text-base md:text-lg"> {slides[idx].subtitle} </p> {!user && ( <div className="mt-8 flex items-center justify-center gap-3"> <AuthButtons /> </div> )} </motion.div> </AnimatePresence> <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-2"> {slides.map((_, i) => ( <div key={i} className={h-1.5 w-6 rounded-full ${i===idx ? "bg-teal-400" : "bg-slate-700"}} /> ))} </div> </div> ); };
+
+const AuthButtons = () => ( <> <Dialog> <DialogTrigger asChild> <Button size="lg" className="px-6 py-6 text-base font-semibold"> <LogIn className="mr-2 h-5 w-5"/> Login </Button> </DialogTrigger> <AuthDialog mode="login" /> </Dialog> <Dialog> <DialogTrigger asChild> <Button variant="outline" size="lg" className="px-6 py-6 text-base font-semibold border-slate-700"> <UserPlus className="mr-2 h-5 w-5"/> Register </Button> </DialogTrigger> <AuthDialog mode="register" /> </Dialog> </> );
+
+const AuthDialog = ({ mode }: { mode: "login" | "register" }) => { const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
+
+const handleSubmit = async (e: React.FormEvent) => { e.preventDefault(); setBusy(true); setError(null); try { if (mode === "register") { const { data, error } = await supabase.auth.signUp({ email, password }); if (error) throw error; } else { const { data, error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; } // Ensure wallet exists for this user const { data: { user } } = await supabase.auth.getUser(); if (user) await ensureWallet(user.id); } catch (err: any) { setError(err?.message || "Authentication failed"); } finally { setBusy(false); } };
+
+return ( <DialogContent className="sm:max-w-md"> <DialogHeader> <DialogTitle className="text-white"> {mode === "login" ? "Login to your account" : "Create your account"} </DialogTitle> </DialogHeader> <form className="space-y-4" onSubmit={handleSubmit}> <div> <Label className="text-slate-300">Email</Label> <Input type="email" required placeholder="you@example.com" className={brand.ring} value={email} onChange={e=>setEmail(e.target.value)} /> </div> <div> <Label className="text-slate-300">Password</Label> <Input type="password" required placeholder="••••••••" className={brand.ring} value={password} onChange={e=>setPassword(e.target.value)} /> </div> {error && <p className="text-sm text-rose-400">{error}</p>} <Button className="w-full" type="submit" disabled={busy}>{busy ? "Please wait…" : (mode === "login" ? "Login" : "Create account")}</Button> <p className="text-xs text-slate-400 text-center">Email auth via Supabase. Check your project settings for providers.</p> </form> </DialogContent> ); };
+
+async function ensureWallet(userId: string) { const { data, error } = await supabase.from(TBL_WALLETS).select("id").eq("user_id", userId).maybeSingle(); if (error) throw error; if (!data) { await supabase.from(TBL_WALLETS).insert({ user_id: userId, currency: "USDT", balance: 0 }); } }
+
+const ActionsGrid = ({ user, onOpenWallet }: { user: any; onOpenWallet: () => void }) => { const items = [ { title: "Wallet", icon: Wallet, desc: "Securely hold assets.", cta: "Open Wallet", onClick: onOpenWallet }, { title: "Deposit", icon: ArrowDownToLine, desc: "Add funds instantly.", cta: "Deposit", onClick: onOpenWallet }, { title: "Withdraw", icon: ArrowUpFromLine, desc: "Cash out safely.", cta: "Withdraw", onClick: onOpenWallet }, { title: "Transfer", icon: Send, desc: "Move funds in seconds.", cta: "Transfer", onClick: onOpenWallet }, { title: "Help", icon: HelpCircle, desc: "Guides & support.", cta: "Get Help", onClick: () => {} }, { title: "Invest", icon: LineChart, desc: "Earn with strategies.", cta: "Explore", onClick: () => {} }, { title: "VIP", icon: Crown, desc: "Extra perks & limits.", cta: "Upgrade", onClick: () => {} }, { title: "Support", icon: Headset, desc: "24/7 assistance.", cta: "Chat", onClick: () => {} }, ];
+
+return ( <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"> {items.map((it, i) => ( <Card key={i} className={${brand.card} border border-slate-800 hover:border-slate-700 transition-colors}> <CardContent className="p-5"> <div className="flex items-start justify-between"> <div> <div className="flex items-center gap-2"> <it.icon className="h-5 w-5 text-teal-400" /> <h3 className="font-semibold text-white">{it.title}</h3> </div> <p className="mt-2 text-sm text-slate-400">{it.desc}</p> </div> <Button variant="ghost" className="hover:bg-slate-800" onClick={it.onClick}> <ChevronRight className="h-4 w-4" /> </Button> </div> </CardContent> </Card> ))} </div> ); };
+
+const PricesTable = () => { const data = usePriceFeed(); return ( <Card className={${brand.card} border border-slate-800}> <CardHeader> <CardTitle className="text-white">Coin Prices</CardTitle> </CardHeader> <CardContent className="p-0"> <div className="overflow-x-auto"> <table className="min-w-full text-left text-sm"> <thead className="text-slate-400"> <tr className="border-y border-slate-800 bg-slate-900/50"> <th className="px-4 py-3">Pair</th> <th className="px-4 py-3">Last Price</th> <th className="px-4 py-3">24h Change</th> </tr> </thead> <tbody> {data.map((r, i) => ( <tr key={i} className="border-b border-slate-800/60 hover:bg-slate-900/40"> <td className="px-4 py-3 text-slate-200 font-medium">{r.symbol}</td> <td className="px-4 py-3 text-slate-300 tabular-nums">{r.price}</td> <td className={px-4 py-3 tabular-nums ${r.change >= 0 ? "text-emerald-400" : "text-rose-400"}}> {r.change >= 0 ? "+" : ""}{r.change.toFixed(2)}% </td> </tr> ))} </tbody> </table> </div> </CardContent> </Card> ); };
+
+function useSupabaseUser() { const [user, setUser] = useState<any>(null); useEffect(() => { supabase.auth.getUser().then(({ data }) => setUser(data.user)); const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setUser(s?.user ?? null)); return () => { sub.subscription.unsubscribe(); }; }, []); return user; }
+
+const WalletDialog = ({ open, onOpenChange, user }: { open: boolean; onOpenChange: (v:boolean)=>void; user: any }) => { const [wallet, setWallet] = useState<any>(null); const [amount, setAmount] = useState(""); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
+
+const load = async () => { if (!user) return; const { data, error } = await supabase.from(TBL_WALLETS).select("*").eq("user_id", user.id).maybeSingle(); if (error) setError(error.message); setWallet(data); };
+
+useEffect(() => { load(); }, [user, open]);
+
+useEffect(() => { if (!user) return; const channel = supabase.channel('wallet-changes') .on('postgres_changes', { event: '*', schema: 'public', table: TBL_WALLETS, filter: user_id=eq.${user.id} }, (payload) => { setWallet(payload.new); }) .subscribe(); return () => { supabase.removeChannel(channel); }; }, [user]);
+
+const deposit = async () => { if (!wallet) return; setBusy(true); setError(null); const amt = parseFloat(amount); if (isNaN(amt) || amt <= 0) { setError("Enter a valid amount"); setBusy(false); return; } const newBal = Number(wallet.balance || 0) + amt; const { error: e1 } = await supabase.from(TBL_WALLETS).update({ balance: newBal }).eq("id", wallet.id); if (e1) setError(e1.message); await supabase.from(TBL_TX).insert({ user_id: wallet.user_id, type: 'deposit', amount: amt }); setAmount(""); setBusy(false); await load(); };
+
+const withdraw = async () => { if (!wallet) return; setBusy(true); setError(null); const amt = parseFloat(amount); if (isNaN(amt) || amt <= 0) { setError("Enter a valid amount"); setBusy(false); return; } const bal = Number(wallet.balance || 0); if (amt > bal) { setError("Insufficient balance"); setBusy(false); return; } const newBal = bal - amt; const { error: e1 } = await supabase.from(TBL_WALLETS).update({ balance: newBal }).eq("id", wallet.id); if (e1) setError(e1.message); await supabase.from(TBL_TX).insert({ user_id: wallet.user_id, type: 'withdraw', amount: amt }); setAmount(""); setBusy(false); await load(); };
+
+return ( <Dialog open={open} onOpenChange={onOpenChange}> <DialogContent className="sm:max-w-lg"> <DialogHeader> <DialogTitle className="text-white">Your Wallet</DialogTitle> </DialogHeader> {!user ? ( <p className="text-slate-400 text-sm">Please login to view your wallet.</p> ) : ( <div className="space-y-4"> <div className="rounded-xl border border-slate-800 p-4 bg-slate-900/40"> <div className="text-slate-400 text-xs">Balance</div> <div className="text-2xl font-semibold text-white tabular-nums">{wallet?.balance ?? 0} {wallet?.currency || 'USDT'}</div> </div> <div className="grid grid-cols-1 md:grid-cols-3 gap-3"> <div className="md:col-span-2"> <Label className="text-slate-300">Amount</Label> <Input placeholder="100" value={amount} onChange={e=>setAmount(e.target.value)} className={brand.ring} /> </div> <div className="flex gap-2 items-end"> <Button onClick={deposit} disabled={busy}>Deposit</Button> <Button variant="outline" className="border-slate-700" onClick={withdraw} disabled={busy}>Withdraw</Button> </div> </div> {error && <p className="text-sm text-rose-400">{error}</p>} <p className="text-xs text-slate-500">Demo finance logic only. No real money is handled.</p> </div> )} </DialogContent> </Dialog> ); };
+
+const MobileNav = ({ open, setOpen }: { open: boolean; setOpen: (v: boolean) => void }) => { const links = ["Home", "Wallet", "Deposit", "Withdraw", "Transfer", "Help", "Invest", "VIP", "Support"]; return ( <div className={fixed inset-0 z-50 md:hidden transition ${open ? "pointer-events-auto" : "pointer-events-none"}}> <div className={absolute inset-0 bg-black/60 ${open ? "opacity-100" : "opacity-0"}} onClick={() => setOpen(false)} /> <div className={absolute top-0 right-0 h-full w-72 bg-slate-900 border-l border-slate-800 p-4 transform transition ${open ? "translate-x-0" : "translate-x-full"}}> <div className="flex items-center justify-between"> <span className="text-white font-semibold">Menu</span> <Button variant="ghost" onClick={() => setOpen(false)}><X className="h-5 w-5"/></Button> </div> <div className="mt-4 space-y-2"> {links.map((l) => ( <a key={l} className="block px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800" href="#">{l}</a> ))} </div> </div> </div> ); };
+
+export default function App() { const [mobileOpen, setMobileOpen] = useState(false); const [walletOpen, setWalletOpen] = useState(false); const user = useSupabaseUser();
+
+return ( <div className={min-h-screen ${brand.bg} text-slate-200}> {/* Topbar */} <header className="sticky top-0 z-40 border-b border-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-950/60"> <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="h-9 w-9 rounded-xl bg-teal-500 grid place-items-center shadow-lg shadow-teal-500/20"> <ShieldCheck className="h-5 w-5 text-slate-950"/> </div> <div> <div className="text-white font-bold leading-none">ALMA Exchange</div> <div className="text-[11px] text-slate-400 tracking-wide">Secure • Fast • Global</div> </div> </div> <nav className="hidden md:flex items-center gap-5 text-sm"> <a href="#" className="hover:text-white">Home</a> <a href="#" className="hover:text-white">Wallet</a> <a href="#" className="hover:text-white">Deposit</a> <a href="#" className="hover:text-white">Withdraw</a> <a href="#" className="hover:text-white">Transfer</a> <a href="#" className="hover:text-white">Help</a> <a href="#" className="hover:text-white">Invest</a> <a href="#" className="hover:text-white">VIP</a> <a href="#" className="hover:text-white">Support</a> </nav> <div className="hidden md:flex items-center gap-2"> {!user ? ( <AuthButtons /> ) : ( <> <Button variant="outline" className="border-slate-700" onClick={()=>setWalletOpen(true)}><Wallet className="mr-2 h-4 w-4"/>Wallet</Button> <Button variant="ghost" onClick={async()=>{ await supabase.auth.signOut(); }}><LogOut className="mr-2 h-4 w-4"/>Logout</Button> </> )} </div> <Button variant="ghost" className="md:hidden" onClick={() => setMobileOpen(true)}> <Menu className="h-6 w-6"/> </Button> </div> <MobileNav open={mobileOpen} setOpen={setMobileOpen} /> </header>
+
+{/* Ticker */}
+  <Ticker />
+
+  {/* Hero */}
+  <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 md:py-12">
+    <HeroCarousel user={user} />
+
+    {/* Quick actions */}
+    <section className="mt-8 md:mt-10">
+      <ActionsGrid user={user} onOpenWallet={()=>setWalletOpen(true)} />
+    </section>
+
+    {/* Tabs area resembling Boywa sections */}
+    <section className="mt-10">
+      <Tabs defaultValue="prices" className="w-full">
+        <TabsList className="bg-slate-900/50 border border-slate-800">
+          <TabsTrigger value="prices">Prices</TabsTrigger>
+          <TabsTrigger value="copy">Copy Trading</TabsTrigger>
+          <TabsTrigger value="earn">Earn</TabsTrigger>
+        </TabsList>
+        <TabsContent value="prices" className="mt-4">
+          <PricesTable />
+        </TabsContent>
+        <TabsContent value="copy" className="mt-4">
+          <Card className={`${brand.card} border border-slate-800`}>
+            <CardHeader>
+              <CardTitle className="text-white">Top Traders (Demo)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-2 gap-4">
+                {["FalconX", "CryptoSage", "AlphaWave", "ZenTrader"].map((n, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 p-4 bg-slate-900/40">
+                    <div>
+                      <div className="font-semibold text-white">{n}</div>
+                      <div className="text-xs text-slate-400">30d ROI: {(10 + i * 4)}%</div>
+                    </div>
+                    <Button variant="outline" className="border-slate-700">Copy</Button>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-xs text-slate-400">Demo only. Connect real data later.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="earn" className="mt-4">
+          <Card className={`${brand.card} border border-slate-800`}>
+            <CardHeader>
+              <CardTitle className="text-white">Earn with Staking (Demo)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {["USDT", "ETH", "SOL"].map((sym, i) => (
+                <div key={i} className="flex items-center justify-between rounded-xl border border-slate-800 p-4 bg-slate-900/40">
+                  <div>
+                    <div className="font-semibold text-white">{sym} Flexible</div>
+                    <div className="text-xs text-slate-400">APR: {(6 + i * 2)}%</div>
+                  </div>
+                  <Button>Subscribe</Button>
+                </div>
+              ))}
+              <p className="mt-1 text-xs text-slate-400">Informational UI. No real financial products are offered.</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </section>
+  </main>
+
+  <footer className="mt-10 border-t border-slate-800/70">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-sm text-slate-400">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+        <p>
+          © {new Date().getFullYear()} ALMA Exchange • Demo interface with Supabase integration.
+        </p>
+        <div className="flex items-center gap-4">
+          <a href="#" className="hover:text-white">Terms</a>
+          <a href="#" className="hover:text-white">Privacy</a>
+          <a href="#" className="hover:text-white">Support</a>
+        </div>
+      </div>
+      <p className="mt-2 text-xs">Disclaimer: This is a demo UI. No actual deposits, withdrawals, or investments are processed.</p>
+    </div>
+  </footer>
+
+  {/* Wallet modal */}
+  <WalletDialog open={walletOpen} onOpenChange={setWalletOpen} user={user} />
+</div>
+
+); }
+
